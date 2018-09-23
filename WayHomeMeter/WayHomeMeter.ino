@@ -26,12 +26,17 @@
 // Additional Libraries - each one of these will need to be installed.
 // ----------------------------
 
-#include "LedMatrix.h"
-// The driver for the LED Matrix Display
-// Using my fork of Daniel Eichorn's library (For support for software SPI and rotation)
-// https://github.com/witnessmenow/MAX7219LedMatrix
+#include <MD_Parola.h>
+
+#include <MD_MAX72xx.h>
+// The library for controlling the MAX7219 LED Matrix
+// Search for "MD_MAX72xx" in the Arduino Library manager
+// https://github.com/MajicDesigns/MD_MAX72xx
 
 #include <UniversalTelegramBot.h>
+// The library for connecting with Telegram Messenger
+// Search for "Telegram" in the Arduino Library manager
+// https://github.com/witnessmenow/Universal-Arduino-Telegram-Bot
 
 #include <Adafruit_NeoPixel.h>
 
@@ -45,13 +50,11 @@
 
 #include <Timezone.h>    // https://github.com/JChristensen/Timezone Modified!
 
+#include "secret.h"
 
 //------- Replace the following! ------
-char ssid[] = WIFI_NAME;       // your network SSID (name)
-char password[] = WIFI_PASS;  // your network key
-
-#define TELEGRAM_BOT_TOKEN "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
-#define MAPS_API_KEY "XXXXXXXXXXXXXXXXXXXXXXXXXXX"
+char ssid[] = MYSSID;       // your network SSID (name)
+char password[] = MYPASS;  // your network key
 
 String homeCoOrds = "dublin,ireland"; //Co-Ords work too
 
@@ -71,16 +74,17 @@ Servo myservo;
 UniversalTelegramBot bot(TELEGRAM_BOT_TOKEN, client);
 GoogleMapsApi mapsApi(MAPS_API_KEY, client);
 
-String homeCoOrds = "dublin,ireland";
 
 // ------ LED Matrix ------
+#define HARDWARE_TYPE MD_MAX72XX::FC16_HW
 #define NUMBER_OF_DEVICES 4
 
 // Wiring that works with ESP32
-#define CS_PIN 15
-#define CLK_PIN 14
-#define MISO_PIN 2 //we do not use this pin just fill to match constructor
-#define MOSI_PIN 12 // Labeled as DIN
+#define CLK_PIN   14  // or SCK
+#define DATA_PIN  12  // or MOSI
+#define CS_PIN    15  // or SS
+
+#define  DELAYTIME  100  // in milliseconds
 
 #define SERVO_PIN 18
 
@@ -89,7 +93,8 @@ String homeCoOrds = "dublin,ireland";
 
 Adafruit_NeoPixel pixels = Adafruit_NeoPixel(NUMPIXELS, NEOPIXEL_PIN, NEO_GRB + NEO_KHZ800);
 
-LedMatrix ledMatrix = LedMatrix(NUMBER_OF_DEVICES, CLK_PIN, MISO_PIN, MOSI_PIN, CS_PIN);
+//MD_MAX72XX mx = MD_MAX72XX(HARDWARE_TYPE, DATA_PIN, CLK_PIN, CS_PIN, NUMBER_OF_DEVICES);
+MD_Parola P = MD_Parola(HARDWARE_TYPE, DATA_PIN, CLK_PIN, CS_PIN, NUMBER_OF_DEVICES);
 
 WiFiUDP ntpUDP;
 NTPClient timeClient(ntpUDP);
@@ -110,23 +115,49 @@ boolean isFirstLocationRecieved = true;
 
 TaskHandle_t Task1;
 
+void displayTime(String text){
+  P.setTextAlignment(PA_CENTER);
+  P.print(text);
+}
+
+bool animationFinished = false;
+
+void scrollText(String text)
+{
+  //animationFinished = false;
+  Serial.println("Scroll Text");
+  char buffer[text.length() + 1];
+  text.toCharArray(buffer, text.length() + 1);
+  P.displayScroll(buffer, PA_CENTER, PA_SCROLL_LEFT, 60);
+  while(!P.displayAnimate()){
+    delay(1);
+  }
+  P.displayScroll(buffer, PA_CENTER, PA_SCROLL_LEFT, 60);
+  while(!P.displayAnimate()){
+    delay(1);
+  }
+
+  showTime = true;
+}
+
+String lastTimeString = "";
+
 void driveDisplay(void * parameter) {
+  delay(100);
   while (true) {
-    ledMatrix.clear();
+    delay(10);
     if (showTime) {
-      ledMatrix.setTextAlignment(TEXT_ALIGN_LEFT);
-      ledMatrix.setText(timeString);
-      ledMatrix.drawText();
-      ledMatrix.commit();
-      delay(35);
+      if(timeString != lastTimeString){
+        lastTimeString = timeString;
+        displayTime(timeString);
+      }
     } else {
-      ledMatrix.scrollTextLeft();
-      ledMatrix.drawText();
-      ledMatrix.commit();
       delay(35);
       if (newData) {
         newData = false;
-        ledMatrix.setNextText(screenMessage);
+        scrollText(screenMessage);
+        lastTimeString = timeString;
+        displayTime(timeString);
       }
     }
   }
@@ -152,10 +183,7 @@ void setup() {
   delay(500);
   myservo.detach();
 
-  ledMatrix.init();
-  ledMatrix.setRotation(true);
-  ledMatrix.setText("Way Home Meter");
-  ledMatrix.setIntensity(8);
+  P.begin();
 
   WiFi.mode(WIFI_STA);
   WiFi.begin(ssid, password);
@@ -226,6 +254,7 @@ void getTelegramData() {
     if (bot.messages[0].type == "callback_query") {
       screenMessage = bot.messages[0].text;
       newData = true;
+      showTime = false;
     } else if (bot.messages[0].longitude != 0 || bot.messages[0].latitude != 0) {
       String origin = String(bot.messages[0].latitude, 7) + "," + String(bot.messages[0].longitude, 7);
       //Serial.println(origin);
@@ -234,6 +263,7 @@ void getTelegramData() {
       bot.sendMessage(chat_id_one, "Updated", "");
       screenMessage = getTravelTime(origin);
       newData = true;
+      showTime = false;
 
       if (isFirstLocationRecieved) {
         isFirstLocationRecieved = false;
@@ -244,6 +274,8 @@ void getTelegramData() {
         isFirstLocationRecieved = true;
         generateTone();
         screenMessage = "Nearly Home!";
+        newData = true;
+        showTime = false;
       }
 
       int distanceTraveled = startingDistance - distanceValue;
@@ -265,6 +297,7 @@ void getTelegramData() {
       } else {
         screenMessage = text;
         newData = true;
+        showTime = false;
       }
     }
   }
