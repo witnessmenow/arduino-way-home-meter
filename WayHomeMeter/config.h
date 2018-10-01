@@ -11,7 +11,7 @@
 #define MAPS_API_KEY "123456789sdfghjkl45rt6789fghjk"
 
 
-#define HOME_LOCATION "dublin,ireland"
+#define HOME_LOCATION "51.5546466,-0.2794867"
 
 #define SERVO_PIN D1
 
@@ -98,4 +98,3 @@ Timezone timezone(BST, GMT);
 //TimeChangeRule usPDT = {"PDT", Second, Sun, Mar, 2, -420};
 //TimeChangeRule usPST = {"PST", First, Sun, Nov, 2, -480};
 //Timezone timezone(usPDT, usPST);
-
