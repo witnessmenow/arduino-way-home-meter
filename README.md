@@ -3,9 +3,9 @@ A project for displaying the live travel time home considering traffic. Built wi
 
 ## Part List
 
-- [ESP8266 Wemos D1 Mini](http://s.click.aliexpress.com/e/8scxud6)
-- [4 in 1 Max7219 Dot Matrix display](http://s.click.aliexpress.com/e/cYd7qa7q)
-- [A small servo](http://s.click.aliexpress.com/e/cDnfleLO)
+- [ESP8266 Wemos D1 Mini*](http://s.click.aliexpress.com/e/8scxud6)
+- [4 in 1 Max7219 Dot Matrix display*](http://s.click.aliexpress.com/e/cYd7qa7q)
+- [A small servo*](http://s.click.aliexpress.com/e/cDnfleLO)
 - [11 Through Hole Neopixels*](http://s.click.aliexpress.com/e/c385tUjI)
 - 220pf capacitor
 - Passive buzzer
