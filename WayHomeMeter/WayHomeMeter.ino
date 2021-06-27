@@ -39,8 +39,6 @@
 
 #include <ArduinoJson.h>
 // Library used for parsing Json from the API responses
-// NOTE: There is a breaking change in the 6.x.x version,
-// install the 5.x.x version instead
 // Search for "Arduino Json" in the Arduino Library manager
 // https://github.com/bblanchon/ArduinoJson
 
@@ -70,6 +68,15 @@
 // https://github.com/JChristensen/Timezone
 // NOTE: You will get a warning that this is only for AVR boards,
 // this can be ignored.
+
+// ----------------------------
+// Dependancy Libraries - used by one of the above libraies.
+// ----------------------------
+
+#include <TimeLib.h>
+// Time is a library that provides timekeeping functionality for Arduino.
+// Search for "time" on the library manager, Author is: "Michael Margolis" (it's a pain to find...)
+// https://github.com/PaulStoffregen/Time
 
 // ----------------------------
 // Config
@@ -146,6 +153,8 @@ void setup() {
 
   timeClient.begin();
 
+  client.setInsecure();
+
   bot.longPoll = 5;
 }
 
@@ -174,11 +183,11 @@ int distanceValue = 0;
 
 bool getTravelTime(String origin) {
   String responseString = mapsApi.distanceMatrix(origin, HOME_LOCATION, "now", "best_guess");
-  DynamicJsonBuffer jsonBuffer;
-  JsonObject& response = jsonBuffer.parseObject(responseString);
-  if (response.success()) {
-    if (response.containsKey("rows")) {
-      JsonObject& element = response["rows"][0]["elements"][0];
+  DynamicJsonDocument doc(10000); // 10000 is being pulled out thin air...
+  DeserializationError error = deserializeJson(doc, responseString);
+  if (!error) {
+    if (doc.containsKey("rows")) {
+      JsonObject element = doc["rows"][0]["elements"][0];
       if (element["status"] == "OK") {
 
         trafficValue = element["duration_in_traffic"]["value"];
@@ -196,7 +205,8 @@ bool getTravelTime(String origin) {
       Serial.println("Reponse did not contain rows");
     }
   } else {
-    Serial.println("Failed to parse Json");
+    Serial.print("deserializeJson() failed with code ");
+    Serial.println(error.c_str());
   }
 
   return false;
@@ -209,17 +219,22 @@ String senderName;
 bool wayHomeActive = false;
 
 void getTelegramData() {
-  int numNewMessages = bot.getUpdates(bot.last_message_received + 1);
-  if (numNewMessages) {
 
+  //Serial.println("getting Telegram data");
+  int numNewMessages = bot.getUpdates(bot.last_message_received + 1);
+  //Serial.println(numNewMessages);
+  if (numNewMessages) {
+    //Serial.println("Handeling Message");
     String chat_id_one = String(bot.messages[0].chat_id);
     if (bot.messages[0].type == "callback_query") {
+      //Serial.println("Is a callback");
       if (wayHomeActive && bot.messages[0].text == "/stop") {
         bot.sendMessage(chat_id_one, "Stopped Tracking, turn off live location share or it will start again", "");
         resetWayHomeMeter("Tracking was stopped by user");
       }
 
     } else if (bot.messages[0].longitude != 0 || bot.messages[0].latitude != 0) {
+      //Serial.println("Seems to be a location");
       lastRecievedCoOrds = String(bot.messages[0].latitude, 7) + "," + String(bot.messages[0].longitude, 7);
       Serial.println("Got Co-Ords");
 
@@ -233,11 +248,13 @@ void getTelegramData() {
         wayHomeActive = true;
         isFirstLocationRecieved = false;
 
-      } else
-      {
-        screenMessage = bot.messages[0].text;
-        newData = true;
       }
+
+    } else
+    {
+      //Serial.println("Displaying Message");
+      screenMessage = bot.messages[0].text;
+      newData = true;
     }
   }
 }
